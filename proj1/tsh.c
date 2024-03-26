@@ -27,7 +27,7 @@ static void cmdexec(char *cmd)
     char *argv[MAX_LINE/2+1];   /* 명령어 인자를 저장하기 위한 배열 */
     int argc = 0;               /* 인자의 개수 */
     char *p, *q;                /* 명령어를 파싱하기 위한 변수 */
-
+	char *fin, *fout;	//파일명을 저장하기 위한 변수
     /*
      * 명령어 앞부분 공백문자를 제거하고 인자를 하나씩 꺼내서 argv에 차례로 저장한다.
      * 작은 따옴표나 큰 따옴표로 이루어진 문자열을 하나의 인자로 처리한다.
@@ -70,26 +70,57 @@ static void cmdexec(char *cmd)
         else if (*q == '<') {   //<면
             q = strsep(&p, "<");    //< 전까지 끊어버리고
             if (*q) argv[argc++] = q;   //인자로 추가
-            q = strsep(&p, " ");    //
-            int fd = open(q, O_RDONLY);    //파일 열기
-            if (fd == -1) { //오류나면 종료
-                perror("open");
-                exit(EXIT_FAILURE);
-            }
-            dup2(fd, STDIN_FILENO);
-            close(fd);
+            p += strspn(p, " \t");    //공백, 탭 제거
+			q = strpbrk(p, ">");
+			if (q != NULL) {
+				q = strpbrk(p, " >");
+				if (*q == ' ') {
+					fin = strsep(&p, " ");
+					p += strspn(p, " >\t");
+					fout = strsep(&p, "\0");
+				}
+				else {
+					fin = strsep(&p, ">");
+					p += strspn(p, " \t");
+					fout = strsep(&p, "\0");
+				}
+				int fdin = open(fin, O_RDONLY);
+				int fdout = open(fout, O_CREAT | O_RDWR, 0666);
+				if (fdin == -1 || fdout == -1) {
+					perror("open");
+					exit(EXIT_FAILURE);
+				}
+				dup2(fdin, STDIN_FILENO);
+				dup2(fdout, STDOUT_FILENO);
+				close(fdin);
+				close(fdout);
+				
+			}
+			else {
+				fin = strsep(&p, "\0");
+				printf("%s\n", fin);
+				int fd = open(fin, O_RDONLY);
+				if (fd == -1) {
+					perror("open");
+					exit(EXIT_FAILURE);
+				}
+				dup2(fd, STDIN_FILENO);
+				close(fd);
+			}
         }
         else if (*q == '>') {   //>면
             q = strsep(&p, ">");    //> 전까지 끊어버리고
             if (*q) argv[argc++] = q;   //인자로 추가
-            q = strsep(&p, " ");    //
-            int fd = open(q, O_CREAT | O_RDWR, 0666);    //파일 열기
+            p += strspn(p, " \t");    //
+			fout = strsep(&p, "\0");
+            int fd = open(fout, O_CREAT | O_RDWR, 0666);    //파일 열기
             if (fd == -1) { //오류나면 종료
                 perror("open");
                 exit(EXIT_FAILURE);
             }
             dup2(fd, STDOUT_FILENO);
             close(fd);
+			break;
         }        
     } while (p);    //p가 null을 가리키지 않으면 반복
     argv[argc] = NULL;
