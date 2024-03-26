@@ -1,0 +1,1 @@
+cmd_/home/lheesoo1020/work/week2/bdlist/bdlist.ko := ld -r -m elf_x86_64  -z max-page-size=0x200000  --build-id  -T ./scripts/module-common.lds -o /home/lheesoo1020/work/week2/bdlist/bdlist.ko /home/lheesoo1020/work/week2/bdlist/bdlist.o /home/lheesoo1020/work/week2/bdlist/bdlist.mod.o;  true
