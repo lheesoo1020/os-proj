@@ -30,8 +30,6 @@ static void cmdexec(char *cmd)
     int argc = 0;               /* 인자의 개수 */
     char *p, *q;                /* 명령어를 파싱하기 위한 변수 */
 	char *fin, *fout;	//파일명을 저장하기 위한 변수
-	bool input, output;
-	bool rdfn;
 	int pipe_fd[2];
 	pid_t pid;
     /*
@@ -74,50 +72,26 @@ static void cmdexec(char *cmd)
             if (*q) argv[argc++] = q;   //그 다음 "전까지 인자 하나 추가
         }
         else if (*q == '<') {   //<면
-            q = strsep(&p, "<");    //< 전까지 끊어버리고
-            if (*q) argv[argc++] = q;   //인자로 추가
-            p += strspn(p, " \t");    //공백, 탭 제거
-			q = strpbrk(p, ">");
-			if (q != NULL) {
-				q = strpbrk(p, " >");
-				if (*q == ' ') {
-					fin = strsep(&p, " ");
-					p += strspn(p, " >\t");
-					fout = strsep(&p, "\0");
-				}
-				else {
-					fin = strsep(&p, ">");
-					p += strspn(p, " \t");
-					fout = strsep(&p, "\0");
-				}
-				int fdin = open(fin, O_RDONLY);
-				int fdout = open(fout, O_CREAT | O_RDWR, 0666);
-				if (fdin == -1 || fdout == -1) {
-					perror("open");
-					exit(EXIT_FAILURE);
-				}
-				dup2(fdin, STDIN_FILENO);
-				dup2(fdout, STDOUT_FILENO);
-				close(fdin);
-				close(fdout);
+            q = strsep(&p, "<");
+			if (*q) argv[argc++] = q;
+			p += strspn(p, " \t");
+			fin = strsep(&p, " \t\'\"<>|");
+	//		printf("%s\n", fin);
+	//		if (*p != '\0') p--;
+			int fd = open(fin, O_RDONLY);
+			if (fd == -1) {
+				perror("open");
+				exit(EXIT_FAILURE);
 			}
-			else {
-				fin = strsep(&p, "\0");
-				printf("%s\n", fin);
-				int fd = open(fin, O_RDONLY);
-				if (fd == -1) {
-					perror("open");
-					exit(EXIT_FAILURE);
-				}
-				dup2(fd, STDIN_FILENO);
-				close(fd);
-			}
+			dup2(fd, STDIN_FILENO);
+			close(fd);
         }
         else if (*q == '>') {   //>면
             q = strsep(&p, ">");    //> 전까지 끊어버리고
             if (*q) argv[argc++] = q;   //인자로 추가
-            p += strspn(p, " \t");    //
-			fout = strsep(&p, "\0");
+			p += strspn(p, " \t");    //
+			fout = strsep(&p, " \t\'\"<>|");
+	//		if (*p != '\0') p--;
             int fd = open(fout, O_CREAT | O_RDWR, 0666);    //파일 열기
             if (fd == -1) { //오류나면 종료
                 perror("open");
