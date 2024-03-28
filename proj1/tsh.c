@@ -14,6 +14,8 @@
 #include <fcntl.h>
 
 #define MAX_LINE 80             /* 명령어의 최대 길이 */
+#define READ_END 0
+#define WRITE_END 1
 
 /*
  * cmdexec - 명령어를 파싱해서 실행한다.
@@ -28,6 +30,10 @@ static void cmdexec(char *cmd)
     int argc = 0;               /* 인자의 개수 */
     char *p, *q;                /* 명령어를 파싱하기 위한 변수 */
 	char *fin, *fout;	//파일명을 저장하기 위한 변수
+	bool input, output;
+	bool rdfn;
+	int pipe_fd[2];
+	pid_t pid;
     /*
      * 명령어 앞부분 공백문자를 제거하고 인자를 하나씩 꺼내서 argv에 차례로 저장한다.
      * 작은 따옴표나 큰 따옴표로 이루어진 문자열을 하나의 인자로 처리한다.
@@ -37,7 +43,7 @@ static void cmdexec(char *cmd)
         /*
          * 공백문자, 큰 따옴표, 작은 따옴표가 있는지 검사한다.
          */ 
-        q = strpbrk(p, " \t\'\"<>");  //가장 왼쪽 공백, 탭, ', ", <, >의 위치 리턴
+        q = strpbrk(p, " \t\'\"<>|");  //가장 왼쪽 공백, 탭, ', ", <, >의 위치 리턴
         /*
          * 공백문자가 있거나 아무 것도 없으면 공백문자까지 또는 전체를 하나의 인자로 처리한다.
          */
@@ -94,7 +100,6 @@ static void cmdexec(char *cmd)
 				dup2(fdout, STDOUT_FILENO);
 				close(fdin);
 				close(fdout);
-				
 			}
 			else {
 				fin = strsep(&p, "\0");
@@ -120,8 +125,27 @@ static void cmdexec(char *cmd)
             }
             dup2(fd, STDOUT_FILENO);
             close(fd);
-			break;
-        }        
+        }
+		else if (*q == '|') {
+			q = strsep(&p, "|");
+			pipe(pipe_fd);
+			pid = fork();
+			if (pid == -1) {
+				perror("fork");
+				exit(EXIT_FAILURE);
+			}
+			else if (pid == 0) {
+				close(pipe_fd[READ_END]);
+				dup2(pipe_fd[WRITE_END], STDOUT_FILENO);
+				break;
+			}
+			else {
+				close(pipe_fd[WRITE_END]);
+				dup2(pipe_fd[READ_END], STDIN_FILENO);
+				argc = 0;
+			}
+			
+		}
     } while (p);    //p가 null을 가리키지 않으면 반복
     argv[argc] = NULL;
     /*
