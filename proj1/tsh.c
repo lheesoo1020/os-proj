@@ -75,7 +75,12 @@ static void cmdexec(char *cmd)
             q = strsep(&p, "<");
 			if (*q) argv[argc++] = q;
 			p += strspn(p, " \t");
-			fin = strsep(&p, " \t\'\"<>|");
+            q = strpbrk(p, " \t\'\"<>|");
+            if (*q == " " || *q == "\t") fin = strsep(&p, " \t");
+			else {
+                fin = strsep(&p, "\'\"<>|");
+                p--;
+            }
 	//		printf("%s\n", fin);
 	//		if (*p != '\0') p--;
 			int fd = open(fin, O_RDONLY);
@@ -90,7 +95,12 @@ static void cmdexec(char *cmd)
             q = strsep(&p, ">");    //> 전까지 끊어버리고
             if (*q) argv[argc++] = q;   //인자로 추가
 			p += strspn(p, " \t");    //
-			fout = strsep(&p, " \t\'\"<>|");
+            q = strpbrk(p, " \t\'\"<>|");
+            if (*q == " " || *q == "\t") fin = strsep(&p, " \t");
+			else {
+                fout = strsep(&p, "\'\"<>|");
+                p--;
+            }
 	//		if (*p != '\0') p--;
             int fd = open(fout, O_CREAT | O_RDWR, 0666);    //파일 열기
             if (fd == -1) { //오류나면 종료
