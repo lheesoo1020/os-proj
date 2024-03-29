@@ -32,6 +32,7 @@ static void cmdexec(char *cmd)
 	char *fin, *fout;	//파일명을 저장하기 위한 변수
 	int pipe_fd[2];
 	pid_t pid;
+	
     /*
      * 명령어 앞부분 공백문자를 제거하고 인자를 하나씩 꺼내서 argv에 차례로 저장한다.
      * 작은 따옴표나 큰 따옴표로 이루어진 문자열을 하나의 인자로 처리한다.
@@ -75,11 +76,13 @@ static void cmdexec(char *cmd)
             q = strsep(&p, "<");
 			if (*q) argv[argc++] = q;
 			p += strspn(p, " \t");
-            q = strpbrk(p, " \t\'\"<>|");
-            if (*q == " " || *q == "\t") fin = strsep(&p, " \t");
+            q = strpbrk(p, " \t<>|");
+            if (q == NULL || *q == ' ' || *q == '\t') {
+				fin = strsep(&p, " \t");
+			}
 			else {
-                fin = strsep(&p, "\'\"<>|");
-                p--;
+                fin = strsep(&p, "<>|");
+				p--;
             }
 	//		printf("%s\n", fin);
 	//		if (*p != '\0') p--;
@@ -95,10 +98,12 @@ static void cmdexec(char *cmd)
             q = strsep(&p, ">");    //> 전까지 끊어버리고
             if (*q) argv[argc++] = q;   //인자로 추가
 			p += strspn(p, " \t");    //
-            q = strpbrk(p, " \t\'\"<>|");
-            if (*q == " " || *q == "\t") fin = strsep(&p, " \t");
+            q = strpbrk(p, " \t<>|");
+            if (q == NULL || *q == ' ' || *q == '\t') {
+				fout = strsep(&p, " \t");
+			}
 			else {
-                fout = strsep(&p, "\'\"<>|");
+                fout = strsep(&p, "<>|");
                 p--;
             }
 	//		if (*p != '\0') p--;
@@ -112,8 +117,13 @@ static void cmdexec(char *cmd)
         }
 		else if (*q == '|') {
 			q = strsep(&p, "|");
-			pipe(pipe_fd);
+			if (pipe(pipe_fd) == -1) {
+				perror("pipe");
+				exit(EXIT_FAILURE);
+			}
+
 			pid = fork();
+
 			if (pid == -1) {
 				perror("fork");
 				exit(EXIT_FAILURE);
