@@ -32,6 +32,7 @@ static void cmdexec(char *cmd)
 	char *fin, *fout;	//파일명을 저장하기 위한 변수
 	int pipe_fd[2];
 	pid_t pid;
+	bool fr;
 	
     /*
      * 명령어 앞부분 공백문자를 제거하고 인자를 하나씩 꺼내서 argv에 차례로 저장한다.
@@ -79,13 +80,24 @@ static void cmdexec(char *cmd)
             q = strpbrk(p, " \t<>|");
             if (q == NULL || *q == ' ' || *q == '\t') {
 				fin = strsep(&p, " \t");
+	//			printf("1");
 			}
-			else {
-                fin = strsep(&p, "<>|");
+			else if (*q == '>') {
+	//			printf("string now: %s\n", p);
+                fin = strdup(strsep(&p, ">"));
+				fr = true;
 				p--;
+				*p = '>';
+	//			printf("rest string: %s\n", p);
             }
-	//		printf("%s\n", fin);
-	//		if (*p != '\0') p--;
+			else {
+				fin = strdup(strsep(&p, "|"));
+				fr = true;
+				p--;
+				*p = '|';
+	//			printf("2");
+			}
+	//		printf("input filename: %s\n", fin);
 			int fd = open(fin, O_RDONLY);
 			if (fd == -1) {
 				perror("open");
@@ -93,19 +105,32 @@ static void cmdexec(char *cmd)
 			}
 			dup2(fd, STDIN_FILENO);
 			close(fd);
+			if (fr) {
+				free(fin);
+				fr = false;
+			}
         }
         else if (*q == '>') {   //>면
             q = strsep(&p, ">");    //> 전까지 끊어버리고
             if (*q) argv[argc++] = q;   //인자로 추가
 			p += strspn(p, " \t");    //
-            q = strpbrk(p, " \t<>|");
+            q = strpbrk(p, " \t<|");
             if (q == NULL || *q == ' ' || *q == '\t') {
 				fout = strsep(&p, " \t");
 			}
-			else {
-                fout = strsep(&p, "<>|");
+			else if (*q == '<') {
+                fout = strdup(strsep(&p, "<"));
+				fr = true;
                 p--;
+				*p = '<';
             }
+			else {
+				fout = strdup(strsep(&p, "|"));
+				fr = true;
+				p--;
+				*p = '|';
+			}
+	//		printf("output filename: %s\n", fout);
 	//		if (*p != '\0') p--;
             int fd = open(fout, O_CREAT | O_RDWR, 0666);    //파일 열기
             if (fd == -1) { //오류나면 종료
@@ -114,8 +139,12 @@ static void cmdexec(char *cmd)
             }
             dup2(fd, STDOUT_FILENO);
             close(fd);
+			if (fr) {
+				free(fout);
+				fr = false;
+			}
         }
-		else if (*q == '|') {
+		else {
 			q = strsep(&p, "|");
 			if (pipe(pipe_fd) == -1) {
 				perror("pipe");
