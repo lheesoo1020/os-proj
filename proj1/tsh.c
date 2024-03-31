@@ -87,7 +87,8 @@ static void cmdexec(char *cmd)
 				fin = strsep(&p, " \t");
 			}
 			else if (*q == '>') {
-                fin = strsep(&p, ">");
+                fin = strdup(strsep(&p, ">"));
+                fr = true;
 				p--;
 				*p = '>';
             }
