@@ -87,8 +87,7 @@ static void cmdexec(char *cmd)
 				fin = strsep(&p, " \t");
 			}
 			else if (*q == '>') {
-                fin = strdup(strsep(&p, ">"));
-				fr = true;
+                fin = strsep(&p, ">");
 				p--;
 				*p = '>';
             }
@@ -154,6 +153,7 @@ static void cmdexec(char *cmd)
          */
 		else {
 			q = strsep(&p, "|");
+            if (*q) argv[argc++] = q;
 			if (pipe(pipe_fd) == -1) {
 				perror("pipe");
 				exit(EXIT_FAILURE);
@@ -168,11 +168,13 @@ static void cmdexec(char *cmd)
 			else if (pid == 0) {
 				close(pipe_fd[READ_END]);
 				dup2(pipe_fd[WRITE_END], STDOUT_FILENO);
+                close(pipe_fd[WRITE_END]);
 				break;
 			}
 			else {
 				close(pipe_fd[WRITE_END]);
 				dup2(pipe_fd[READ_END], STDIN_FILENO);
+                close(pipe_fd[READ_END]);
 				argc = 0;
 			}
 			
