@@ -29,75 +29,75 @@ static void cmdexec(char *cmd)
     char *argv[MAX_LINE/2+1];   /* 명령어 인자를 저장하기 위한 배열 */
     int argc = 0;               /* 인자의 개수 */
     char *p, *q;                /* 명령어를 파싱하기 위한 변수 */
-	char *fin, *fout;	//파일명을 저장하기 위한 변수
-	int pipe_fd[2];
-	pid_t pid;
-	bool fr;
+	char *fin, *fout;	        /* 입출력 파일명을 저장하기 위한 변수 */
+	int pipe_fd[2];             /* 프로세스 간 통신을 위한 파이프 */
+	pid_t pid;                  /* 부모/자식 구분을 위한 pid */
+	bool fr;                    /* 메모리 해제가 필요한 상황이면 true, 아니면 false */
 	
     /*
      * 명령어 앞부분 공백문자를 제거하고 인자를 하나씩 꺼내서 argv에 차례로 저장한다.
      * 작은 따옴표나 큰 따옴표로 이루어진 문자열을 하나의 인자로 처리한다.
+     * 기호 '<'나 '>'을 만나면 입출력 리다이렉션, '|'를 만나면 파이프 명령을 수행한다.
      */
-    p = cmd; p += strspn(p, " \t"); //앞의 공백/탭만큼 포인터 이동
+    p = cmd; p += strspn(p, " \t"); 
     do {
         /*
-         * 공백문자, 큰 따옴표, 작은 따옴표가 있는지 검사한다.
+         * 공백문자, 큰 따옴표, 작은 따옴표, 기호 '<', '>', '|'가 있는지 검사한다.
          */ 
-        q = strpbrk(p, " \t\'\"<>|");  //가장 왼쪽 공백, 탭, ', ", <, >의 위치 리턴
+        q = strpbrk(p, " \t\'\"<>|");
         /*
          * 공백문자가 있거나 아무 것도 없으면 공백문자까지 또는 전체를 하나의 인자로 처리한다.
          */
-        if (q == NULL || *q == ' ' || *q == '\t') { //없거나 공백, 탭이면
-            q = strsep(&p, " \t");  //공백, 탭 앞까지 q에 저장
-            if (*q) argv[argc++] = q;   //q에 저장된게 있으면 q를 인자로 추가
+        if (q == NULL || *q == ' ' || *q == '\t') {
+            q = strsep(&p, " \t");
+            if (*q) argv[argc++] = q;
         }
         /*
          * 작은 따옴표가 있으면 그 위치까지 하나의 인자로 처리하고, 
          * 작은 따옴표 위치에서 두 번째 작은 따옴표 위치까지 다음 인자로 처리한다.
          * 두 번째 작은 따옴표가 없으면 나머지 전체를 인자로 처리한다.
          */
-        else if (*q == '\'') {  //'면
+        else if (*q == '\'') {
             q = strsep(&p, "\'");
-            if (*q) argv[argc++] = q;   //'전까지 인자 하나
+            if (*q) argv[argc++] = q;
             q = strsep(&p, "\'");
-            if (*q) argv[argc++] = q;   //그 다음 '전까지 인자 하나 추가
+            if (*q) argv[argc++] = q;
         }
         /*
          * 큰 따옴표가 있으면 그 위치까지 하나의 인자로 처리하고, 
          * 큰 따옴표 위치에서 두 번째 큰 따옴표 위치까지 다음 인자로 처리한다.
          * 두 번째 큰 따옴표가 없으면 나머지 전체를 인자로 처리한다.
          */
-        else if (*q == '\"'){  //"면
+        else if (*q == '\"'){
             q = strsep(&p, "\"");
-            if (*q) argv[argc++] = q;   //"전까지 인자 하나
+            if (*q) argv[argc++] = q;
             q = strsep(&p, "\"");
-            if (*q) argv[argc++] = q;   //그 다음 "전까지 인자 하나 추가
+            if (*q) argv[argc++] = q;
         }
-        else if (*q == '<') {   //<면
+        /*
+         * '<'가 있으면 그 위치까지 하나의 인자로 처리하고, 
+         * '<' 다음 문자열과 같은 이름을 가지는 파일을 표준 입력으로 처리한다.
+         */
+        else if (*q == '<') {
             q = strsep(&p, "<");
 			if (*q) argv[argc++] = q;
 			p += strspn(p, " \t");
             q = strpbrk(p, " \t<>|");
             if (q == NULL || *q == ' ' || *q == '\t') {
 				fin = strsep(&p, " \t");
-	//			printf("1");
 			}
 			else if (*q == '>') {
-	//			printf("string now: %s\n", p);
                 fin = strdup(strsep(&p, ">"));
 				fr = true;
 				p--;
 				*p = '>';
-	//			printf("rest string: %s\n", p);
             }
 			else {
 				fin = strdup(strsep(&p, "|"));
 				fr = true;
 				p--;
 				*p = '|';
-	//			printf("2");
 			}
-	//		printf("input filename: %s\n", fin);
 			int fd = open(fin, O_RDONLY);
 			if (fd == -1) {
 				perror("open");
@@ -110,10 +110,15 @@ static void cmdexec(char *cmd)
 				fr = false;
 			}
         }
-        else if (*q == '>') {   //>면
-            q = strsep(&p, ">");    //> 전까지 끊어버리고
-            if (*q) argv[argc++] = q;   //인자로 추가
-			p += strspn(p, " \t");    //
+        /*
+         * '>'가 있으면 그 위치까지 하나의 인자로 처리하고, 
+         * '>' 다음 문자열을 이름으로 가지는 파일을 표준 출력으로 처리한다.
+         * 이때, 파일을 생성하는데 이미 존재하는 파일이라면 덮어쓴다.
+         */
+        else if (*q == '>') {
+            q = strsep(&p, ">");
+            if (*q) argv[argc++] = q;
+			p += strspn(p, " \t");
             q = strpbrk(p, " \t<|");
             if (q == NULL || *q == ' ' || *q == '\t') {
 				fout = strsep(&p, " \t");
@@ -130,10 +135,8 @@ static void cmdexec(char *cmd)
 				p--;
 				*p = '|';
 			}
-	//		printf("output filename: %s\n", fout);
-	//		if (*p != '\0') p--;
-            int fd = open(fout, O_CREAT | O_RDWR, 0666);    //파일 열기
-            if (fd == -1) { //오류나면 종료
+            int fd = open(fout, O_CREAT | O_RDWR, 0666);
+            if (fd == -1) {
                 perror("open");
                 exit(EXIT_FAILURE);
             }
@@ -144,6 +147,11 @@ static void cmdexec(char *cmd)
 				fr = false;
 			}
         }
+        /*
+         * '|'가 있으면 자식 프로세스를 생성하고 파이프를 연다. 
+         * 자식 프로세스는 현재까지 저장한 명령어를 실행하고, 파이프를 통해 출력을 부모 프로세스에게 보낸다.
+         * 부모 프로세스는 파이프를 통해 자식 프로세스로부터 받은 결과를 입력으로 계속해서 남은 명령어 문자열을 처리한다.
+         */
 		else {
 			q = strsep(&p, "|");
 			if (pipe(pipe_fd) == -1) {
@@ -169,13 +177,13 @@ static void cmdexec(char *cmd)
 			}
 			
 		}
-    } while (p);    //p가 null을 가리키지 않으면 반복
+    } while (p);
     argv[argc] = NULL;
     /*
      * argv에 저장된 명령어를 실행한다.
      */
     if (argc > 0)
-        execvp(argv[0], argv);  //argv[0]에는 명령어가, 그 뒤에는 인자가 쭉 저장되어있고 이를 실행
+        execvp(argv[0], argv);
 }
 
 /*
