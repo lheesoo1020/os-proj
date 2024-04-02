@@ -3,6 +3,7 @@
  * 이 프로그램은 한양대학교 ERICA 컴퓨터학부 학생을 위한 교육용으로 제작되었다.
  * 한양대학교 ERICA 학생이 아닌 이는 프로그램을 수정하거나 배포할 수 없다.
  * 프로그램을 수정할 경우 날짜, 학과, 학번, 이름, 수정 내용을 기록한다.
+ * 2024-04-02 16:18 컴퓨터학부 2020076108 이희수 최종 수정
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,8 +15,8 @@
 #include <fcntl.h>
 
 #define MAX_LINE 80             /* 명령어의 최대 길이 */
-#define READ_END 0
-#define WRITE_END 1
+#define READ_END 0              /* 읽기 */
+#define WRITE_END 1             /* 쓰기 */
 
 /*
  * cmdexec - 명령어를 파싱해서 실행한다.
@@ -76,16 +77,20 @@ static void cmdexec(char *cmd)
         }
         /*
          * '<'가 있으면 그 위치까지 하나의 인자로 처리하고, 
-         * '<' 다음 문자열과 같은 이름을 가지는 파일을 표준 입력으로 처리한다.
+         * '<' 다음 문자열을 파일명으로 인식하여 표준 입력으로 처리한다.
          */
         else if (*q == '<') {
             q = strsep(&p, "<");
 			if (*q) argv[argc++] = q;
-			p += strspn(p, " \t");
+            //문자열 앞의 공백을 제거하고 뒤의 기호를 확인한다.
+			p += strspn(p, " \t");          
             q = strpbrk(p, " \t<>|");
+            //문자열 뒤가 공백이라면 입력 파일명으로 저장한다.
             if (q == NULL || *q == ' ' || *q == '\t') {
 				fin = strsep(&p, " \t");
 			}
+            //문자열 뒤가 '>'라면 새로운 메모리를 할당하여 파일명을 저장하고,
+            //포인터를 한칸 당겨 널값으로 바뀐 기호를 되돌린다.
 			else if (*q == '>') {
                 fin = strdup(strsep(&p, ">"));
                 fr = true;
@@ -98,6 +103,7 @@ static void cmdexec(char *cmd)
 				p--;
 				*p = '|';
 			}
+            //파일을 열고, 표준 입력으로 설정한다.
 			int fd = open(fin, O_RDONLY);
 			if (fd == -1) {
 				perror("open");
@@ -135,6 +141,7 @@ static void cmdexec(char *cmd)
 				p--;
 				*p = '|';
 			}
+            //파일을 열고 표준 출력으로 설정하고, 없다면 생성한다.
             int fd = open(fout, O_CREAT | O_RDWR, 0666);
             if (fd == -1) {
                 perror("open");
@@ -148,10 +155,9 @@ static void cmdexec(char *cmd)
 			}
         }
         /*
-         * '|'가 있으면 파이프 명령을 수행한다. 
-         * 자식 프로세스를 생성해 '|' 이전까지 실행시키고, 결과를 부모 프로세스에게 보낸다.
-         * 부모 프로세스는 파이프를 통해 자식 프로세스로부터 받은 결과를 입력으로 '|' 이후의 명령을 수행한다.
-         * '|'가 계속해서 있으면 재귀적으로 수행하게 된다.
+         * '|'가 있으면 그 위치까지 하나의 인자로 처리하고 파이프 명령을 수행한다. 
+         * 자식 프로세스를 생성해 '|' 이전까지 실행시키고 파이프로 출력한다.
+         * 부모 프로세스는 파이프로 입력받아 '|' 이후의 명령을 수행한다.
          */
 		else {
 			q = strsep(&p, "|");
@@ -167,17 +173,17 @@ static void cmdexec(char *cmd)
 				perror("fork");
 				exit(EXIT_FAILURE);
 			}
-			else if (pid == 0) {
+			else if (pid == 0) {    //자식 프로세스
 				close(pipe_fd[READ_END]);
 				dup2(pipe_fd[WRITE_END], STDOUT_FILENO);
                 close(pipe_fd[WRITE_END]);
-				break;
+				break;  //자식 프로세스는 반복문을 빠져나가 명령어를 실행한다.
 			}
-			else {
+			else {  //부모 프로세스
 				close(pipe_fd[WRITE_END]);
 				dup2(pipe_fd[READ_END], STDIN_FILENO);
                 close(pipe_fd[READ_END]);
-				argc = 0;
+				argc = 0;   //argv에 인자를 다시 채워나간다.
 			}
 			
 		}
