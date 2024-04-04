@@ -97,7 +97,7 @@ static void cmdexec(char *cmd)
 				p--;
 				*p = '>';
             }
-            //'|' 기호도 동일하게 작동한다.
+            //'|' 기호도 동일하게 처리한다.
 			else {
 				fin = strdup(strsep(&p, "|"));
 				fr = true;
@@ -141,7 +141,7 @@ static void cmdexec(char *cmd)
                 p--;
 				*p = '<';
             }
-            //'|' 기호도 동일하게 작동한다.
+            //'|' 기호도 동일하게 처리한다.
 			else {
 				fout = strdup(strsep(&p, "|"));
 				fr = true;
