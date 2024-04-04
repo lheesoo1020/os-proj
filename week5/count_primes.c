@@ -11,6 +11,7 @@
 #include <inttypes.h>
 #include <stdatomic.h>
 #include <pthread.h>
+#include <omp.h>
 
 #define GROUP 16            /* 스레드의 개수 = 검색 구간의 개수 */
 #define START 0x3B9ACA00    /* 검색 시작 값 */
@@ -89,7 +90,16 @@ int main(void)
      * 결과적으로 병렬 계산이 이루어져 순차방식보다 빠르게 계산할 수 있다.
      */
     gettimeofday(&start, NULL);
-    printf("순차 계산...\n");
+    printf("병렬 계산 (스레드)...\n");
+	
+	for (i = 0; i < GROUP; i++) {
+		arg[i] = i;
+		pthread_create(tid + i, NULL, foo, arg + i);
+	}
+
+	for (i = 0; i < GROUP; i++) {
+		pthread_join(tid[i], NULL);
+	}
 
     gettimeofday(&end, NULL);
     elapsed = (double)(end.tv_sec - start.tv_sec)+(double)(end.tv_usec - start.tv_usec)*1e-6;
@@ -104,10 +114,18 @@ int main(void)
      */
     gettimeofday(&start, NULL);
     printf("병렬 계산 (OpenMP)...\n");
-    
+	
+	int local_cnt;
+	#pragma omp parallel for
+	for (i = 0; i < GROUP; i++) {
+		for (int n = START+i*SPAN; n < START+(i+1)*SPAN; ++n)
+            if (isprime(n))
+                ++local_cnt;
+	}
+
     gettimeofday(&end, NULL);
     elapsed = (double)(end.tv_sec - start.tv_sec)+(double)(end.tv_usec - start.tv_usec)*1e-6;
-    printf("소수 개수 %d개\n실행 시간: %.4f초\n---\n", count, elapsed);
+    printf("소수 개수 %d개\n실행 시간: %.4f초\n---\n", local_cnt, elapsed);
 
     return 0;
 }
