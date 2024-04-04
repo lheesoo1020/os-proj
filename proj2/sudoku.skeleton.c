@@ -83,6 +83,7 @@ void *check_columns(void *arg)
  */
 void *check_subgrid(void *arg)
 {
+    // 여기를 완성하세요
     int num = *arg;
     int rowstart = (int)(num/3) * 3
     int colstart = num % 3 * 3;
