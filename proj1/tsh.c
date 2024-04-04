@@ -97,20 +97,22 @@ static void cmdexec(char *cmd)
 				p--;
 				*p = '>';
             }
+            //'|' 기호도 동일하게 작동한다.
 			else {
 				fin = strdup(strsep(&p, "|"));
 				fr = true;
 				p--;
 				*p = '|';
 			}
-            //파일을 열고, 표준 입력으로 설정한다.
+            //파일을 읽기 권한으로 열고, 표준 입력으로 설정한다.
 			int fd = open(fin, O_RDONLY);
-			if (fd == -1) {
+			if (fd == -1) { //에러 처리
 				perror("open");
 				exit(EXIT_FAILURE);
 			}
-			dup2(fd, STDIN_FILENO);
+			dup2(fd, STDIN_FILENO); //표준 입력 설정
 			close(fd);
+            //메모리 해제가 필요하면 해제한다.
 			if (fr) {
 				free(fin);
 				fr = false;
@@ -124,31 +126,37 @@ static void cmdexec(char *cmd)
         else if (*q == '>') {
             q = strsep(&p, ">");
             if (*q) argv[argc++] = q;
+            //문자열 앞의 공백을 제거하고 뒤의 기호를 확인한다.
 			p += strspn(p, " \t");
             q = strpbrk(p, " \t<|");
+            //문자열 뒤가 공백이라면 입력 파일명으로 저장한다.
             if (q == NULL || *q == ' ' || *q == '\t') {
 				fout = strsep(&p, " \t");
 			}
+            //문자열 뒤가 '>'라면 새로운 메모리를 할당하여 파일명을 저장하고,
+            //포인터를 한칸 당겨 널값으로 바뀐 기호를 되돌린다.
 			else if (*q == '<') {
                 fout = strdup(strsep(&p, "<"));
 				fr = true;
                 p--;
 				*p = '<';
             }
+            //'|' 기호도 동일하게 작동한다.
 			else {
 				fout = strdup(strsep(&p, "|"));
 				fr = true;
 				p--;
 				*p = '|';
 			}
-            //파일을 열고 표준 출력으로 설정하고, 없다면 생성한다.
+            //파일을 읽기/쓰기 권한으로 열고 표준 출력으로 설정하는데, 없다면 생성한다.
             int fd = open(fout, O_CREAT | O_RDWR, 0666);
-            if (fd == -1) {
+            if (fd == -1) { //에러 처리
                 perror("open");
                 exit(EXIT_FAILURE);
             }
-            dup2(fd, STDOUT_FILENO);
+            dup2(fd, STDOUT_FILENO);    //표준 출력 설정
             close(fd);
+            //메모리 해제가 필요하면 해제한다.
 			if (fr) {
 				free(fout);
 				fr = false;
@@ -156,32 +164,35 @@ static void cmdexec(char *cmd)
         }
         /*
          * '|'가 있으면 그 위치까지 하나의 인자로 처리하고 파이프 명령을 수행한다. 
-         * 자식 프로세스를 생성해 '|' 이전까지 실행시키고 파이프로 출력한다.
+         * 자식 프로세스를 생성해 '|' 이전까지 실행시키고 파이프로 출력하게 한다.
          * 부모 프로세스는 파이프로 입력받아 '|' 이후의 명령을 수행한다.
          */
 		else {
 			q = strsep(&p, "|");
             if (*q) argv[argc++] = q;
+            //파이프 생성, 오류 처리
 			if (pipe(pipe_fd) == -1) {
 				perror("pipe");
 				exit(EXIT_FAILURE);
 			}
-
+            //자식 프로세스 생성
 			pid = fork();
 
-			if (pid == -1) {
+			if (pid == -1) {    //오류 처리
 				perror("fork");
 				exit(EXIT_FAILURE);
 			}
-			else if (pid == 0) {    //자식 프로세스
+            //자식 프로세스
+			else if (pid == 0) {
 				close(pipe_fd[READ_END]);
-				dup2(pipe_fd[WRITE_END], STDOUT_FILENO);
+				dup2(pipe_fd[WRITE_END], STDOUT_FILENO);    //파이프를 표준 출력으로 설정한다.
                 close(pipe_fd[WRITE_END]);
 				break;  //자식 프로세스는 반복문을 빠져나가 명령어를 실행한다.
 			}
-			else {  //부모 프로세스
+            //부모 프로세스
+			else {
 				close(pipe_fd[WRITE_END]);
-				dup2(pipe_fd[READ_END], STDIN_FILENO);
+				dup2(pipe_fd[READ_END], STDIN_FILENO);      //파이프를 표준 입력으로 설정한다.
                 close(pipe_fd[READ_END]);
 				argc = 0;   //argv에 인자를 다시 채워나간다.
 			}
