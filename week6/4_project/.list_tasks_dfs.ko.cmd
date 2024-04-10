@@ -1,0 +1,1 @@
+cmd_/home/lheesoo1020/work/os_proj/week6/4_project/list_tasks_dfs.ko := ld -r -m elf_x86_64  -z max-page-size=0x200000  --build-id  -T ./scripts/module-common.lds -o /home/lheesoo1020/work/os_proj/week6/4_project/list_tasks_dfs.ko /home/lheesoo1020/work/os_proj/week6/4_project/list_tasks_dfs.o /home/lheesoo1020/work/os_proj/week6/4_project/list_tasks_dfs.mod.o;  true
