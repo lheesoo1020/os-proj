@@ -28,7 +28,6 @@ bool valid[3][9];
  */
 void *check_rows(void *arg)
 {
-    // 여기를 완성하세요
     for (int i = 0; i < 9; i++) {
 		bool isValid = true;
 		bool check[9] = {false};
@@ -54,7 +53,6 @@ void *check_rows(void *arg)
  */
 void *check_columns(void *arg)
 {
-    // 여기를 완성하세요
     for (int j = 0; j < 9; j++) {
 		bool isValid = true;
 		bool check[9] = {false};
@@ -81,7 +79,6 @@ void *check_columns(void *arg)
  */
 void *check_subgrid(void *arg)
 {
-    // 여기를 완성하세요
     int k = *((int*)arg);
     int rowstart = (k/3) * 3;
     int colstart = (k%3) * 3;
@@ -138,18 +135,15 @@ void check_sudoku(void)
     /*
      * 스레드를 생성하여 각 행을 검사하는 check_rows() 함수를 실행한다.
      */
-    // 여기를 완성하세요
     pthread_create(&tid[9], NULL, check_rows, NULL);
     /*
      * 스레드를 생성하여 각 열을 검사하는 check_columns() 함수를 실행한다.
      */
-    // 여기를 완성하세요
     pthread_create(&tid[10], NULL, check_columns, NULL);
     /*
      * 9개의 스레드를 생성하여 각 3x3 서브그리드를 검사하는 check_subgrid() 함수를 실행한다.
      * 3x3 서브그리드의 위치를 식별할 수 있는 값을 함수의 인자로 넘긴다.
      */
-    // 여기를 완성하세요
     for (i = 0; i < 9; i++) {
         arg[i] = i;
         pthread_create(tid + i, NULL, check_subgrid, arg + i);
@@ -157,7 +151,6 @@ void check_sudoku(void)
     /*
      * 11개의 스레드가 종료할 때까지 기다린다.
      */
-    // 여기를 완성하세요
     for (i = 0; i < 11; i++) {
         pthread_join(tid[i], NULL);
     }
