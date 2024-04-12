@@ -29,18 +29,18 @@ bool valid[3][9];
 void *check_rows(void *arg)
 {
     for (int i = 0; i < 9; i++) {
-		bool isValid = true;
-		bool check[9] = {false};
+		bool isValid = true;        //현재 행이 올바르면 true, 아니면 false
+		bool check[9] = {false};    //행의 숫자 중복 체크를 위한 배열
         for (int j = 0; j < 9; j++) {
-            if (check[sudoku[i][j] - 1]) {
-                isValid = false;                
+            if (check[sudoku[i][j] - 1]) {  //현재 보고있는 숫자가 이전에 등장했다면
+                isValid = false;        //올바르지 않은 행
             }
-            else {
-                check[sudoku[i][j] - 1] = true;
+            else {  //등장하지 않았다면
+                check[sudoku[i][j] - 1] = true;     //숫자가 등장한 것으로 표시
             }
         }
-        if (isValid) {
-            valid[0][i] = true;
+        if (isValid) {      //현재 행이 올바르다면
+            valid[0][i] = true;     //valid 업데이트
         }
     }
 
@@ -54,18 +54,18 @@ void *check_rows(void *arg)
 void *check_columns(void *arg)
 {
     for (int j = 0; j < 9; j++) {
-		bool isValid = true;
-		bool check[9] = {false};
+		bool isValid = true;        //현재 열이 올바르면 true, 아니면 false
+		bool check[9] = {false};    //열의 숫자 중복 체크를 위한 배열
         for (int i = 0; i < 9; i++) {
-            if (check[sudoku[i][j] - 1]) {
-                isValid = false;                
+            if (check[sudoku[i][j] - 1]) {  //현재 보고있는 숫자가 이전에 등장했다면
+                isValid = false;        //올바르지 않은 열          
             }
-            else {
-                check[sudoku[i][j] - 1] = true;
+            else {  //등장하지 않았다면
+                check[sudoku[i][j] - 1] = true;     //숫자가 등장한 것으로 표시
             }
         }
-        if (isValid) {
-            valid[1][j] = true;
+        if (isValid) {      //현재 열이 올바르다면
+            valid[1][j] = true;     //valid 업데이트
         }
     }
 
@@ -79,25 +79,25 @@ void *check_columns(void *arg)
  */
 void *check_subgrid(void *arg)
 {
-    int k = *((int*)arg);
-    int rowstart = (k/3) * 3;
-    int colstart = (k%3) * 3;
-    bool isValid = true;
-    bool check[9] = {false};
+    int k = *((int*)arg);   //서브그리드 번호
+    int rowstart = (k/3) * 3;   //서브그리드의 왼쪽 위 행 index
+    int colstart = (k%3) * 3;   //서브그리드의 왼쪽 위 열 index
+    bool isValid = true;    //서브그리드가 올바르면 true, 아니면 false
+    bool check[9] = {false};    //서브그리드 내의 숫자 중복 체크를 위한 배열
 
     for (int i = rowstart; i < rowstart + 3; i++) {
         for (int j = colstart; j < colstart + 3; j++) {
-            if (check[sudoku[i][j] - 1]) {
-                isValid = false;
+            if (check[sudoku[i][j] - 1]) {  //숫자가 이전에 등장했다면
+                isValid = false;        //올바르지 않은 서브그리드
             }
-            else {
-                check[sudoku[i][j] - 1] = true;
+            else {  //등장하지 않았다면
+                check[sudoku[i][j] - 1] = true;     //숫자가 등장한 것으로 표시
             }
         }
     }
 
-    if (isValid) {
-        valid[2][k] = true;
+    if (isValid) {  //현재 서브그리드가 올바르다면
+        valid[2][k] = true;     //valid 업데이트
     }
 
     pthread_exit(NULL);
