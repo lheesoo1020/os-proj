@@ -14,9 +14,9 @@
 #define N 8
 
 int counter = 0;
-int global;
+//int global;
 //__thread int global;
-//_Thread_local int global;
+_Thread_local int global;
 
 void *foo(void *arg)
 {
@@ -26,8 +26,8 @@ void *foo(void *arg)
     printf("%d--created\n", local);
     
     while (local == global)
-        pthread_testcancel();
-    
+  	    pthread_testcancel();
+//		continue;    
     printf("<%d,%d> %d--finished\n", local, global, local);
     pthread_exit(NULL);
 }

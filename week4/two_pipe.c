@@ -35,13 +35,13 @@ int main(void) {
 		close(fdA[READ_END]);
 		close(fdB[WRITE_END]);
 
-		int i;
-		for (i = 0; i < 10; i++) {
-			snprintf(write_msg, BUFFER_SIZE, "parent %d\n", i);
-			write(fdA[WRITE_END], write_msg, strlen(write_msg) + 1);
+		int c;
+		int p;
+		for (p = 0; p < 10; p++) {
+			write(fdA[WRITE_END], &p, sizeof(p));
 			sleep(1);
-			read(fdB[READ_END], read_msg, BUFFER_SIZE);
-			printf("parent got message: %s", read_msg);
+			read(fdB[READ_END], &c, sizeof(c));
+			printf("parent got message: %d\n", c);
 		}
 
 		close(fdA[WRITE_END]);
@@ -51,12 +51,12 @@ int main(void) {
 		close(fdA[WRITE_END]);
 		close(fdB[READ_END]);
 
-		int i;
-		for (i = 10000; i < 10010; i++) {
-			snprintf(write_msg, BUFFER_SIZE, "child %d\n", i);
-			read(fdA[READ_END], read_msg, BUFFER_SIZE);
-			printf("\tchild got message: %s", read_msg);
-			write(fdB[WRITE_END], write_msg, strlen(write_msg) + 1);
+		int c;
+		int p;
+		for (c = 10000; c < 10010; c++) {
+			read(fdA[READ_END], &p, sizeof(p));
+			printf("\tchild got message: %d\n", p);
+			write(fdB[WRITE_END], &c, sizeof(c));
 			sleep(1);
 		}
 		
