@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdatomic.h>
 
 #define N 8             /* 스레드 개수 */
 #define RUNTIME 100000  /* 출력량을 제한하기 위한 실행시간 (마이크로초) */
@@ -24,6 +25,7 @@ char *color[N+1] = {"\e[0;30m","\e[0;31m","\e[0;32m","\e[0;33m","\e[0;34m","\e[0
  */
 bool waiting[N];
 bool alive = true;
+atomic_int lock = 0;
 
 /*
  * N 개의 스레드가 임계구역에 배타적으로 들어가기 위해 스핀락을 사용하여 동기화한다.
@@ -31,8 +33,12 @@ bool alive = true;
 void *worker(void *arg)
 {
     int i = *(int *)arg;
-    
+    int expected = 0;
+
     while (alive) {
+		while (!atomic_compare_exchange_weak(&lock, &expected, 1)) {
+			expected = 0;
+		}
         /*
          * 임계구역: 알파벳 문자를 한 줄에 40개씩 10줄 출력한다.
          */
@@ -44,6 +50,7 @@ void *worker(void *arg)
         /*
          * 임계구역이 성공적으로 종료되었다.
          */
+		lock = 0;
     }
     pthread_exit(NULL);
 }

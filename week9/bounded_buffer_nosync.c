@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdatomic.h>
 
 #define N 8
 #define MAX 1024
@@ -34,6 +35,8 @@ int consumed = 0;
  */
 bool alive = true;
 
+atomic_int lock = 0;
+
 /*
  * 생산자 스레드로 실행할 함수이다. 아이템을 생성하여 버퍼에 넣는다.
  */
@@ -41,8 +44,16 @@ void *producer(void *arg)
 {
     int i = *(int *)arg;
     int item;
-    
+    int expected = 0;
+
     while (alive) {
+		while (!atomic_compare_exchange_weak(&lock, &expected, 1)) {
+			expected = 0;
+		}
+		if (task_log[item][0] != -1 && task_log[buffer[in]][1] == -1) {
+			lock = 0;
+			continue;
+		}
         /*
          * 새로운 아이템을 생산하여 버퍼에 넣고 관련 변수를 갱신한다.
          */
@@ -65,6 +76,7 @@ void *producer(void *arg)
          * 생산한 아이템을 출력한다.
          */
         printf("<P%d,%d>\n", i, item);
+		lock = 0;
     }
     pthread_exit(NULL);
 }
@@ -76,8 +88,16 @@ void *consumer(void *arg)
 {
     int i = *(int *)arg;
     int item;
-    
+    int expected = 0;
+
     while (alive) {
+		while (!atomic_compare_exchange_weak(&lock, &expected, 1)) {
+			expected = 0;
+		}
+		if (counter == 0) {
+			lock = 0;
+			continue;
+		}
         /*
          * 버퍼에서 아이템을 꺼내고 관련 변수를 갱신한다.
          */
@@ -89,6 +109,7 @@ void *consumer(void *arg)
          */        
         if (task_log[item][0] == -1) {
             printf(RED"<C%d,%d>"RESET"....ERROR: 아이템 %d 미생산\n", i, item, item);
+			lock = 0;
             continue;
         }
         else if (task_log[item][1] == -1) {
@@ -97,12 +118,14 @@ void *consumer(void *arg)
         }
         else {
             printf(RED"<C%d,%d>"RESET"....ERROR: 아이템 %d 중복소비\n", i, item, item);
+			lock = 0;
             continue;
         }
         /*
          * 소비할 아이템을 빨간색으로 출력한다.
          */
         printf(RED"<C%d,%d>"RESET"\n", i, item);
+		lock = 0;
     }
     pthread_exit(NULL);
 }
