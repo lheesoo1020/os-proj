@@ -50,7 +50,7 @@ void *producer(void *arg)
 		while (!atomic_compare_exchange_weak(&lock, &expected, 1)) {
 			expected = 0;
 		}
-		if (task_log[item][0] != -1 && task_log[buffer[in]][1] == -1) {
+		if (counter == BUFSIZE) {
 			lock = 0;
 			continue;
 		}
