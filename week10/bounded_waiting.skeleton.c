@@ -25,23 +25,17 @@ char *color[N+1] = {"\e[0;30m","\e[0;31m","\e[0;32m","\e[0;33m","\e[0;34m","\e[0
  */
 bool waiting[N];
 bool alive = true;
-atomic_int lock = 0;
+
+pthread_mutex_t mutex;
+
 /*
  * N 개의 스레드가 임계구역에 배타적으로 들어가기 위해 스핀락을 사용하여 동기화한다.
  */
 void *worker(void *arg)
 {
     int i = *(int *)arg;
-	int j;
-    int expected;
-
-    while (alive) {
-		waiting[i] = true;
-		expected = 0;
-		while (waiting[i] && !atomic_compare_exchange_weak(&lock, &expected, 1)) {
-			expected = 0;
-		}
-		waiting[i] = false;
+	while (alive) {
+		pthread_mutex_lock(&mutex);
         /*
          * 임계구역: 알파벳 문자를 한 줄에 40개씩 10줄 출력한다.
          */
@@ -53,16 +47,7 @@ void *worker(void *arg)
         /*
          * 임계구역이 성공적으로 종료되었다.
          */
-		j = (i + 1) % N;
-		while ((j != i) && !waiting[j]) {
-			j = (j + 1) % N;
-		}
-		if (j == i) {
-			lock = 0;
-		}
-		else {
-			waiting[j] = false;
-		}
+		pthread_mutex_unlock(&mutex);
     }
     pthread_exit(NULL);
 }
@@ -71,6 +56,8 @@ int main(void)
 {
     pthread_t tid[N];
     int i, id[N];
+
+	pthread_mutex_init(&mutex, NULL);
 
     /*
      * N 개의 자식 스레드를 생성한다.
@@ -93,6 +80,9 @@ int main(void)
      */
     for (i = 0; i < N; ++i)
         pthread_join(tid[i], NULL);
+
+	pthread_mutex_destroy(&mutex);
+
     /*
      * 메인함수를 종료한다.
      */

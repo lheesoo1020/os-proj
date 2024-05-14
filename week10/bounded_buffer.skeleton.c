@@ -9,12 +9,12 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <stdatomic.h>
+#include <semaphore.h>
 
 #define N 8
 #define MAX 10240
 #define BUFSIZE 4
-#define RUNTIME 4000    /* 출력량을 제한하기 위한 실행시간 (마이크로초) */
+#define RUNTIME 1000    /* 출력량을 제한하기 위한 실행시간 (마이크로초) */
 #define RED "\e[0;31m"
 #define RESET "\e[0m"
 /*
@@ -36,7 +36,8 @@ int consumed = 0;
  */
 bool alive = true;
 
-atomic_int lock = 0;
+sem_t sem_prod, sem_cons;
+
 /*
  * 생산자 스레드로 실행할 함수이다. 아이템을 생성하여 버퍼에 넣는다.
  */
@@ -44,23 +45,22 @@ void *producer(void *arg)
 {
     int i = *(int *)arg;
     int item;
-	int expected = 0;
     
     while (alive) {
-		while (!atomic_compare_exchange_weak(&lock, &expected, 1)) {
-			expected = 0;
-		}
-		if (counter == BUFSIZE) {
-			lock = 0;
+		sem_wait(&sem_prod);
+        if (counter == BUFSIZE) {
+			sem_post(&sem_prod);
 			continue;
 		}
-        /*
+		/*
          * 새로운 아이템을 생산하여 버퍼에 넣고 관련 변수를 갱신한다.
          */
         item = next_item++;
         buffer[in] = item;
         in = (in + 1) % BUFSIZE;
         counter++;
+		
+		sem_post(&sem_prod);
 
         /*
          * 생산자를 기록하고 중복생산이 아닌지 검증한다.
@@ -73,9 +73,6 @@ void *producer(void *arg)
             printf("<P%d,%d>....ERROR: 아이템 %d 중복생산\n", i, item, item);
             continue;
         }
-
-		lock = 0;
-
         /*
          * 생산한 아이템을 출력한다.
          */
@@ -91,22 +88,22 @@ void *consumer(void *arg)
 {
     int i = *(int *)arg;
     int item;
-    int expected = 0;
-
+    
     while (alive) {
-		while (!atomic_compare_exchange_weak(&lock, &expected, 1)) {
-			expected = 0;
-		}
+		sem_wait(&sem_cons);
 		if (counter == 0) {
-			lock = 0;
+			sem_post(&sem_cons);
 			continue;
 		}
+
         /*
          * 버퍼에서 아이템을 꺼내고 관련 변수를 갱신한다.
          */
         item = buffer[out];
         out = (out + 1) % BUFSIZE;
         counter--;
+
+		sem_post(&sem_cons);
 
         /*
          * 소비자를 기록하고 미생산 또는 중복소비 아닌지 검증한다.
@@ -123,12 +120,11 @@ void *consumer(void *arg)
             printf(RED"<C%d,%d>"RESET"....ERROR: 아이템 %d 중복소비\n", i, item, item);
             continue;
         }
-		lock = 0;
         /*
          * 소비할 아이템을 빨간색으로 출력한다.
          */
         printf(RED"<C%d,%d>"RESET"\n", i, item);
-    }
+	}
     pthread_exit(NULL);
 }
 
@@ -136,6 +132,9 @@ int main(void)
 {
     pthread_t tid[N];
     int i, id[N];
+	
+	sem_init(&sem_prod, 0, 1);
+	sem_init(&sem_cons, 0, 1);
 
     /*
      * 생산자와 소비자를 기록하기 위한 logs 배열을 초기화한다.
@@ -180,6 +179,10 @@ int main(void)
 		for (i = 0; i < N; i++)
 			pthread_join(tid[i], NULL);
 	}
+	
+	sem_destroy(&sem_prod);
+	sem_destroy(&sem_cons);
+
     /*
      * 생산된 아이템을 건너뛰지 않고 소비했는지 검증한다.
      */
