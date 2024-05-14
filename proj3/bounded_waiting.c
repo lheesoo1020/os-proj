@@ -38,6 +38,9 @@ void *worker(void *arg)
     while (alive) {
 		waiting[i] = true;
 		expected = 0;
+        /* 
+         * 스핀락 구현
+         */
 		while (waiting[i] && !atomic_compare_exchange_weak(&lock, &expected, 1)) {
 			expected = 0;
 		}
@@ -52,15 +55,16 @@ void *worker(void *arg)
         }
         /*
          * 임계구역이 성공적으로 종료되었다.
+         * lock을 물려줄 스레드 탐색
          */
 		j = (i + 1) % N;
 		while ((j != i) && !waiting[j]) {
 			j = (j + 1) % N;
 		}
-		if (j == i) {
+		if (j == i) {   //lock을 물려줄 스레드가 없는 경우
 			lock = 0;
 		}
-		else {
+		else {  //j번 스레드에게 lock을 물려준다.
 			waiting[j] = false;
 		}
     }
