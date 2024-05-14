@@ -36,7 +36,7 @@ int consumed = 0;
  */
 bool alive = true;
 
-atomic_int lock = 0;
+atomic_int lock = 0;    //lock
 /*
  * 생산자 스레드로 실행할 함수이다. 아이템을 생성하여 버퍼에 넣는다.
  */
@@ -47,9 +47,18 @@ void *producer(void *arg)
 	int expected = 0;
     
     while (alive) {
-		while (!atomic_compare_exchange_weak(&lock, &expected, 1)) {
+        /*
+         * 스핀락 구현
+         */
+		while (!atomic_compare_exchange_weak(&lock, &expected, 1)) {    
 			expected = 0;
 		}
+        
+        //임계구역 시작
+        
+        /*
+         * buffer가 가득 차있으면 lock 해제
+         */
 		if (counter == BUFSIZE) {
 			lock = 0;
 			continue;
@@ -61,7 +70,6 @@ void *producer(void *arg)
         buffer[in] = item;
         in = (in + 1) % BUFSIZE;
         counter++;
-
         /*
          * 생산자를 기록하고 중복생산이 아닌지 검증한다.
          */
@@ -73,9 +81,13 @@ void *producer(void *arg)
             printf("<P%d,%d>....ERROR: 아이템 %d 중복생산\n", i, item, item);
             continue;
         }
-
+        
+        //임계구역 종료
+        
+        /*
+         * lock 해제
+         */
 		lock = 0;
-
         /*
          * 생산한 아이템을 출력한다.
          */
@@ -94,9 +106,18 @@ void *consumer(void *arg)
     int expected = 0;
 
     while (alive) {
+        /*
+         * 스핀락 구현
+         */
 		while (!atomic_compare_exchange_weak(&lock, &expected, 1)) {
 			expected = 0;
 		}
+
+        //임계구역 시작
+        
+        /*
+         * buffer가 비어있으면 lock 해제
+         */
 		if (counter == 0) {
 			lock = 0;
 			continue;
@@ -107,7 +128,6 @@ void *consumer(void *arg)
         item = buffer[out];
         out = (out + 1) % BUFSIZE;
         counter--;
-
         /*
          * 소비자를 기록하고 미생산 또는 중복소비 아닌지 검증한다.
          */        
@@ -123,6 +143,12 @@ void *consumer(void *arg)
             printf(RED"<C%d,%d>"RESET"....ERROR: 아이템 %d 중복소비\n", i, item, item);
             continue;
         }
+        
+        //임계구역 종료
+        
+        /* 
+         * lock 해제
+         */
 		lock = 0;
         /*
          * 소비할 아이템을 빨간색으로 출력한다.
@@ -170,7 +196,9 @@ int main(void)
      */
     for (i = 0; i < N; ++i)
         pthread_join(tid[i], NULL);
-
+    /*
+     * buffer에 item이 남아있으면 소비자 스레드를 다시 생성하여 전부 소비한다.
+     */
 	if (counter > 0) {
 		alive = true;
 		for (i = 0; i < N; i++)
