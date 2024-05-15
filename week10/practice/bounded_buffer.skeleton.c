@@ -130,8 +130,8 @@ int main(void)
     int i, id[N];
     
     sem_init(&mutex, 0, 1);
-	sem_init(empty, 0, BUFSIZE);
-	sem_init(full, 0, 0);
+	sem_init(&empty, 0, BUFSIZE);
+	sem_init(&full, 0, 0);
 
     /*
      * 생산자와 소비자를 기록하기 위한 logs 배열을 초기화한다.
@@ -166,7 +166,7 @@ int main(void)
      */
     for (i = 0; i < N; ++i)
         pthread_join(tid[i], NULL);
-
+/*
 	if (counter > 0) {
 		alive = true;
 		for (i = 0; i < N; i++)
@@ -176,7 +176,7 @@ int main(void)
 		for (i = 0; i < N; i++)
 			pthread_join(tid[i], NULL);
 	}
-	
+*/
     sem_destroy(&mutex);
 	sem_destroy(&empty);
 	sem_destroy(&full);
