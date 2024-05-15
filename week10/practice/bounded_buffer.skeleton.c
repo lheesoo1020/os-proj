@@ -130,8 +130,8 @@ int main(void)
     int i, id[N];
     
     sem_init(&mutex, 0, 1);
-	sem_init(&empty, 0, BUFSIZE);
-	sem_init(&full, 0, 0);
+	sem_init(empty, 0, BUFSIZE);
+	sem_init(full, 0, 0);
 
     /*
      * 생산자와 소비자를 기록하기 위한 logs 배열을 초기화한다.
