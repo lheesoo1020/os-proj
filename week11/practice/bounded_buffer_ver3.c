@@ -1,5 +1,5 @@
 /*
- * Copyright(c) 2021-2024 All rights reserved by Heekuck Oh.
+ * Copyright(c) 2021-2023 All rights reserved by Heekuck Oh.
  * 이 프로그램은 한양대학교 ERICA 컴퓨터학부 학생을 위한 교육용으로 제작되었다.
  * 한양대학교 ERICA 학생이 아닌 이는 프로그램을 수정하거나 배포할 수 없다.
  * 프로그램을 수정할 경우 날짜, 학과, 학번, 이름, 수정 내용을 기록한다.
@@ -9,12 +9,10 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <semaphore.h>
 
 #define N 8
-#define MAX 10240
+#define MAX 1024
 #define BUFSIZE 4
-#define RUNTIME 1000    /* 출력량을 제한하기 위한 실행시간 (마이크로초) */
 #define RED "\e[0;31m"
 #define RESET "\e[0m"
 /*
@@ -36,7 +34,8 @@ int consumed = 0;
  */
 bool alive = true;
 
-sem_t mutex, empty, full;
+pthread_mutex_t mutex;
+pthread_cond_t cond;
 
 /*
  * 생산자 스레드로 실행할 함수이다. 아이템을 생성하여 버퍼에 넣는다.
@@ -45,18 +44,23 @@ void *producer(void *arg)
 {
     int i = *(int *)arg;
     int item;
-    
-    while (alive) {
-		sem_wait(&empty);
-        sem_wait(&mutex);
 
-		/*
+    while (alive) {
+        pthread_mutex_lock(&mutex);
+        while (counter == BUFSIZE && alive) {
+            pthread_cond_wait(&cond, &mutex);
+        }
+        if (!alive) {
+            pthread_mutex_unlock(&mutex);
+            break;
+        }
+        /*
          * 새로운 아이템을 생산하여 버퍼에 넣고 관련 변수를 갱신한다.
          */
         item = next_item++;
         buffer[in] = item;
         in = (in + 1) % BUFSIZE;
-
+        counter++;
         /*
          * 생산자를 기록하고 중복생산이 아닌지 검증한다.
          */
@@ -68,9 +72,8 @@ void *producer(void *arg)
             printf("<P%d,%d>....ERROR: 아이템 %d 중복생산\n", i, item, item);
             continue;
         }
-
-        sem_post(&mutex);
-        sem_post(&full);
+        pthread_cond_signal(&cond);
+        pthread_mutex_unlock(&mutex);
         /*
          * 생산한 아이템을 출력한다.
          */
@@ -86,18 +89,23 @@ void *consumer(void *arg)
 {
     int i = *(int *)arg;
     int item;
-    
-    while (alive) {
-		sem_wait(&full);
-		sem_wait(&mutex);
 
+    while (alive) {
+        pthread_mutex_lock(&mutex);
+        while (counter == 0 && alive) {
+            pthread_cond_wait(&cond, &mutex);
+        }
+        if (!alive) {
+            pthread_mutex_unlock(&mutex);
+            break;
+        }
+        
         /*
          * 버퍼에서 아이템을 꺼내고 관련 변수를 갱신한다.
          */
         item = buffer[out];
         out = (out + 1) % BUFSIZE;
         counter--;
-
         /*
          * 소비자를 기록하고 미생산 또는 중복소비 아닌지 검증한다.
          */        
@@ -113,14 +121,13 @@ void *consumer(void *arg)
             printf(RED"<C%d,%d>"RESET"....ERROR: 아이템 %d 중복소비\n", i, item, item);
             continue;
         }
-
-        sem_post(&mutex);
-        sem_post(&empty);
+        pthread_cond_signal(&cond);
+        pthread_mutex_unlock(&mutex);
         /*
          * 소비할 아이템을 빨간색으로 출력한다.
          */
         printf(RED"<C%d,%d>"RESET"\n", i, item);
-	}
+    }
     pthread_exit(NULL);
 }
 
@@ -128,10 +135,9 @@ int main(void)
 {
     pthread_t tid[N];
     int i, id[N];
-    
-    sem_init(&mutex, 0, 1);
-	sem_init(&empty, 0, BUFSIZE);
-	sem_init(&full, 0, 0);
+
+    pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&cond, NULL);
 
     /*
      * 생산자와 소비자를 기록하기 위한 logs 배열을 초기화한다.
@@ -153,10 +159,10 @@ int main(void)
         pthread_create(tid+i, NULL, producer, id+i);
     }
     /*
-     * 스레드가 출력하는 동안 RUNTIME 마이크로초 쉰다.
+     * 스레드가 출력하는 동안 1 밀리초 쉰다.
      * 이 시간으로 스레드의 출력량을 조절한다.
      */
-    usleep(RUNTIME);
+    usleep(1000);
     /*
      * 스레드가 자연스럽게 무한 루프를 빠져나올 수 있게 한다.
      */
@@ -164,23 +170,10 @@ int main(void)
     /*
      * 자식 스레드가 종료될 때까지 기다린다.
      */
+    usleep(1000);
+    pthread_cond_broadcast(&cond);
     for (i = 0; i < N; ++i)
         pthread_join(tid[i], NULL);
-
-	if (counter > 0) {
-		alive = true;
-		for (i = 0; i < N; i++)
-			pthread_create(tid+i, NULL, consumer, id+i);
-		usleep(RUNTIME);
-		alive = false;
-		for (i = 0; i < N; i++)
-			pthread_join(tid[i], NULL);
-	}
-	
-    sem_destroy(&mutex);
-	sem_destroy(&empty);
-	sem_destroy(&full);
-
     /*
      * 생산된 아이템을 건너뛰지 않고 소비했는지 검증한다.
      */

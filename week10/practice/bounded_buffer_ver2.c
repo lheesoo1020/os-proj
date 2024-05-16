@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #define N 8
 #define MAX 10240
@@ -49,14 +51,13 @@ void *producer(void *arg)
     while (alive) {
 		sem_wait(&empty);
         sem_wait(&mutex);
-
 		/*
          * 새로운 아이템을 생산하여 버퍼에 넣고 관련 변수를 갱신한다.
          */
         item = next_item++;
         buffer[in] = item;
         in = (in + 1) % BUFSIZE;
-
+        counter++;
         /*
          * 생산자를 기록하고 중복생산이 아닌지 검증한다.
          */
@@ -97,7 +98,6 @@ void *consumer(void *arg)
         item = buffer[out];
         out = (out + 1) % BUFSIZE;
         counter--;
-
         /*
          * 소비자를 기록하고 미생산 또는 중복소비 아닌지 검증한다.
          */        
