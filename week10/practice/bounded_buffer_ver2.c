@@ -89,8 +89,8 @@ void *consumer(void *arg)
     int item;
     
     while (alive) {
-		sem_wait(&full);
-		sem_wait(&mutex);
+	sem_wait(&full);
+	sem_wait(&mutex);
 
         /*
          * 버퍼에서 아이템을 꺼내고 관련 변수를 갱신한다.
@@ -161,22 +161,15 @@ int main(void)
      * 스레드가 자연스럽게 무한 루프를 빠져나올 수 있게 한다.
      */
     alive = false;
+
+    for (i = 0; i < N; i++)
+	    pthread_cancel(tid[i]);
     /*
      * 자식 스레드가 종료될 때까지 기다린다.
      */
     for (i = 0; i < N; ++i)
         pthread_join(tid[i], NULL);
-/*
-	if (counter > 0) {
-		alive = true;
-		for (i = 0; i < N; i++)
-			pthread_create(tid+i, NULL, consumer, id+i);
-		usleep(RUNTIME);
-		alive = false;
-		for (i = 0; i < N; i++)
-			pthread_join(tid[i], NULL);
-	}
-*/
+
     sem_destroy(&mutex);
 	sem_destroy(&empty);
 	sem_destroy(&full);
