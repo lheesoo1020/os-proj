@@ -32,7 +32,9 @@ bool alive = true;
  */
 enum {SLEEPING, HUNGRY, EATING} state[N];
 
-pthread_mutex_t chopstick[N];
+pthread_cond_t cond[N];
+pthread_mutex_t mutex;
+
 
 /*
  * 철학자는 식사를 하는 동안에 문자를 출력한다. <i...i> 이런 식이다.
@@ -40,27 +42,31 @@ pthread_mutex_t chopstick[N];
  */
 void *philosopher(void *arg)
 {
-    int id;
+    int id, left, right;
 
     /*
      * 철학자의 ID를 읽는다.
      */
     id = *(int *)arg;
+    left = (id - 1 + N) % N;
+    right = (id + 1) % N;
+
+    
     /*
      * 철학자는 식사와 낮잠을 반복한다.
      */
     while (alive) {
+        pthread_mutex_lock(&mutex);
         state[id] = HUNGRY;
-		
-		pthread_mutex_lock(&chopstick[id]);
-		if (!pthread_mutex_trylock(&chopstick[(id+1)%N])) {
-			pthread_mutex_unlock(&chopstick[id]);
-			continue;
-		}
+        while(state[left] == EATING || state[right] == EATING)
+            pthread_cond_wait(&cond[id], &mutex);
         /*
          * 배고픈 철학자는 식사를 한다.
          */
         state[id] = EATING;
+
+        pthread_mutex_unlock(&mutex);
+        
         printf("%s<%d%s", color[id], id, color[N]);
         for (int i = 0; i < 64; ++i) {
             printf("%s.%s", color[id], color[N]);
@@ -71,15 +77,18 @@ void *philosopher(void *arg)
          * 제대로 할 수 있었던 식사였는지 검증한다.
          * 불가능한 식사였다면 오류를 출력하고 식탁에서 퇴장한다.
          */
-        if (state[(id+1)%N] == EATING || state[(id-1+N)%N] == EATING) {
+        pthread_mutex_lock(&mutex);
+        if (state[left] == EATING || state[right] == EATING) {
             printf("ERROR");
+            pthread_mutex_unlock(&mutex);
             break;
         }
-        else
-            state[id] = SLEEPING;
 
-		pthread_mutex_unlock(&chopstick[id]);
-		pthread_mutex_unlock(&chopstick[(id+1)%N]);
+        if (state[left] == HUNGRY) pthread_cond_signal(&cond[left]);
+        if (state[right] == HUNGRY) pthread_cond_signal(&cond[right]);
+
+        state[id] = SLEEPING;
+        pthread_mutex_unlock(&mutex);
         /*
          * 식사를 끝낸 철학자는 NAPTIME 마이크로초 낮잠을 잔다.
          */
@@ -96,6 +105,10 @@ int main(void)
 {
     int i, id[N];
     pthread_t tid[N];
+
+    for (i = 0; i < N; i++)
+        pthread_cond_init(&cond[i], NULL);
+    pthread_mutex_init(&mutex, NULL);
  
     /*
      * N 개의 철학자 스레드를 생성한다.
@@ -117,6 +130,10 @@ int main(void)
      */
     for (i = 0; i < N; ++i)
         pthread_join(tid[i], NULL);
+    
+    for (i = 0; i < N; i++)
+        pthread_cond_destroy(&cond[i]);
+    pthread_mutex_destroy(&mutex);
 
     return 0;
 }

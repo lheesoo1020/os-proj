@@ -35,7 +35,8 @@ int consumed = 0;
 bool alive = true;
 
 pthread_mutex_t mutex;
-pthread_cond_t cond;
+pthread_cond_t cond_prod;
+pthread_cond_t cond_cons;
 
 /*
  * 생산자 스레드로 실행할 함수이다. 아이템을 생성하여 버퍼에 넣는다.
@@ -48,7 +49,7 @@ void *producer(void *arg)
     while (alive) {
         pthread_mutex_lock(&mutex);
         while (counter == BUFSIZE && alive) {
-            pthread_cond_wait(&cond, &mutex);
+            pthread_cond_wait(&cond_prod, &mutex);
         }
         if (!alive) {
             pthread_mutex_unlock(&mutex);
@@ -72,7 +73,7 @@ void *producer(void *arg)
             printf("<P%d,%d>....ERROR: 아이템 %d 중복생산\n", i, item, item);
             continue;
         }
-        pthread_cond_signal(&cond);
+        pthread_cond_signal(&cond_cons);
         pthread_mutex_unlock(&mutex);
         /*
          * 생산한 아이템을 출력한다.
@@ -93,7 +94,7 @@ void *consumer(void *arg)
     while (alive) {
         pthread_mutex_lock(&mutex);
         while (counter == 0 && alive) {
-            pthread_cond_wait(&cond, &mutex);
+            pthread_cond_wait(&cond_cons, &mutex);
         }
         if (!alive) {
             pthread_mutex_unlock(&mutex);
@@ -121,7 +122,7 @@ void *consumer(void *arg)
             printf(RED"<C%d,%d>"RESET"....ERROR: 아이템 %d 중복소비\n", i, item, item);
             continue;
         }
-        pthread_cond_signal(&cond);
+        pthread_cond_signal(&cond_prod);
         pthread_mutex_unlock(&mutex);
         /*
          * 소비할 아이템을 빨간색으로 출력한다.
@@ -137,7 +138,8 @@ int main(void)
     int i, id[N];
 
     pthread_mutex_init(&mutex, NULL);
-    pthread_cond_init(&cond, NULL);
+    pthread_cond_init(&cond_prod, NULL);
+    pthread_cond_init(&cond_cons, NULL);
 
     /*
      * 생산자와 소비자를 기록하기 위한 logs 배열을 초기화한다.
@@ -166,12 +168,15 @@ int main(void)
     /*
      * 스레드가 자연스럽게 무한 루프를 빠져나올 수 있게 한다.
      */
+    pthread_mutex_lock(&mutex);
     alive = false;
+    usleep(1000);
+    pthread_cond_broadcast(&cond_prod);
+    pthread_cond_broadcast(&cond_cons);
+    pthread_mutex_unlock(&mutex);
     /*
      * 자식 스레드가 종료될 때까지 기다린다.
      */
-    usleep(1000);
-    pthread_cond_broadcast(&cond);
     for (i = 0; i < N; ++i)
         pthread_join(tid[i], NULL);
     /*
@@ -194,7 +199,8 @@ int main(void)
         return 1;
     }
 
-    pthread_cond_desttroy(&cond);
+    pthread_cond_destroy(&cond_prod);
+    pthread_cond_destroy(&cond_cons);
     pthread_mutex_destroy(&mutex);
     /*
      * 메인함수를 종료한다.
