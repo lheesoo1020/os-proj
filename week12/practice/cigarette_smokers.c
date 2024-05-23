@@ -30,19 +30,18 @@ void *tabacco_smoker(void *arg)
 {
     while (true) {
         sem_wait(paper);
-        if (sem_trywait(matches) == 0) {
-            /*
-             * 담배를 피운다.
-            */
-            printf(TABACCO" 흡연자\n");
-            /*
-             * 다 피웠음을 에이전트에게 알린다.
-             */
-            sem_post(done);
-        }
-        else {
+        if (sem_trywait(matches)) {
             sem_post(paper);
+            continue;
         }
+        /*
+         * 담배를 피운다.
+         */
+        printf(TABACCO" 흡연자\n");
+        /*
+         * 다 피웠음을 에이전트에게 알린다.
+         */
+        sem_post(done);
     }
 }
 
@@ -53,19 +52,18 @@ void *paper_smoker(void *arg)
 {
     while (true) {
         sem_wait(tabacco);
-        if (sem_trywait(matches) == 0) {
-            /*
-            * 담배를 피운다.
-            */
-            printf(PAPER" 흡연자\n");
-            /*
-            * 다 피웠음을 에이전트에게 알린다.
-            */
-            sem_post(done);
-        }
-        else {
+        if (sem_trywait(matches)) {
             sem_post(tabacco);
+            continue;
         }
+        /*
+         * 담배를 피운다.
+         */
+        printf(PAPER" 흡연자\n");
+        /*
+         * 다 피웠음을 에이전트에게 알린다.
+         */
+        sem_post(done);
     }
 }
 
@@ -76,19 +74,18 @@ void *matches_smoker(void *arg)
 {
     while (true) {
         sem_wait(tabacco);
-        if (sem_trywait(paper) == 0) {
-            /*
-            * 담배를 피운다.
-            */
-            printf(MATCH" 흡연자\n");
-            /*
-            * 다 피웠음을 에이전트에게 알린다.
-            */
-            sem_post(done);
-        }
-        else {
+        if (sem_trywait(paper)) {
             sem_post(tabacco);
+            continue;
         }
+        /*
+         * 담배를 피운다.
+         */
+        printf(MATCH" 흡연자\n");
+        /*
+         * 다 피웠음을 에이전트에게 알린다.
+         */
+        sem_post(done);
     }
 }
 
