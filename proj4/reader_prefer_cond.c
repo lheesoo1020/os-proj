@@ -367,6 +367,11 @@ char *img5[L5] = {
  */
 bool alive = true;
 
+int reader_count = 0;
+int write_count = 0;
+pthread_cond_t rw_cond;
+pthread_mutex_t mutex;
+
 /*
  * Reader 스레드는 같은 문자를 L0번 출력한다. 예를 들면 <AAA...AA> 이런 식이다.
  * 출력할 문자는 인자를 통해 0이면 A, 1이면 B, ..., 등으로 출력하며, 시작과 끝을 <...>로 나타낸다.
@@ -385,6 +390,11 @@ void *reader(void *arg)
      * 스레드가 살아 있는 동안 같은 문자열 시퀀스 <XXX...XX>를 반복해서 출력한다.
      */
     while (alive) {
+        pthread_mutex_lock(&mutex);
+        reader_count++;
+        while (write_count)
+            pthread_cond_wait(&rw_cond, &mutex);
+        pthread_mutex_unlock(&mutex);
         /*
          * Begin Critical Section
          */
@@ -395,6 +405,10 @@ void *reader(void *arg)
         /* 
          * End Critical Section
          */
+        pthread_mutex_lock(&mutex);
+        reader_count--;
+        pthread_cond_signal(&rw_cond);
+        pthread_mutex_unlock(&mutex);
     }
     pthread_exit(NULL);
 }
@@ -420,6 +434,11 @@ void *writer(void *arg)
      * 스레드가 살아 있는 동안 같은 이미지를 반복해서 출력한다.
      */
     while (alive) {
+        pthread_mutex_lock(&mutex);
+        while (reader_count || write_count)
+            pthread_cond_wait(&rw_cond, &mutex);
+        write_count++;
+        pthread_mutex_unlock(&mutex);
         /*
          * Begin Critical Section
          */
@@ -451,6 +470,10 @@ void *writer(void *arg)
         /* 
          * End Critical Section
          */
+        pthread_mutex_lock(&mutex);
+        pthread_cond_signal(&rw_cond);
+        write_count--;
+        pthread_mutex_unlock(&mutex);
         /*
          * 이미지 출력 후 SLEEPTIME 나노초 안에서 랜덤하게 쉰다.
          */
@@ -473,6 +496,9 @@ int main(void)
     pthread_t rthid[NREAD];
     pthread_t wthid[NWRITE];
     struct timespec req;
+
+    pthread_cond_init(&rw_cond, NULL);
+    pthread_mutex_init(&mutex, NULL);
 
     /*
      * Create NREAD reader threads
@@ -504,10 +530,14 @@ int main(void)
      * Now terminate all threads and leave
      */
     alive = false;
+
     for (i = 0; i < NREAD; ++i)
         pthread_join(rthid[i], NULL);
     for (i = 0; i < NWRITE; ++i)
         pthread_join(wthid[i], NULL);
+
+    pthread_cond_destroy(&rw_cond);
+    pthread_mutex_destroy(&mutex);
     
     return 0;
 }
