@@ -367,12 +367,12 @@ char *img5[L5] = {
  */
 bool alive = true;
 
-int read_count = 0;
-int write_count = 0;
+int read_count = 0;     //읽고 있는 reader
+int write_count = 0;    //쓰고 있는 writer
 
-pthread_mutex_t rw_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t reader_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t writer_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t rw_mutex = PTHREAD_MUTEX_INITIALIZER;       //전체 대기표
+pthread_mutex_t reader_mutex = PTHREAD_MUTEX_INITIALIZER;   //reader 간의 상호배제
+pthread_mutex_t writer_mutex = PTHREAD_MUTEX_INITIALIZER;   //writer 간의 상호배제
 
 /*
  * Reader 스레드는 같은 문자를 L0번 출력한다. 예를 들면 <AAA...AA> 이런 식이다.
@@ -396,8 +396,8 @@ void *reader(void *arg)
         pthread_mutex_lock(&reader_mutex);
         pthread_mutex_unlock(&rw_mutex);
         read_count++;
-        if (read_count == 1) {
-            pthread_mutex_lock(&writer_mutex);
+        if (read_count == 1) {    //첫 reader
+            pthread_mutex_lock(&writer_mutex);  //writer 차단
         }
         pthread_mutex_unlock(&reader_mutex);
         /*
@@ -412,8 +412,8 @@ void *reader(void *arg)
          */
         pthread_mutex_lock(&reader_mutex);
         read_count--;
-        if (read_count == 0) {
-            pthread_mutex_unlock(&writer_mutex);
+        if (read_count == 0) {      //마지막 reader
+            pthread_mutex_unlock(&writer_mutex);    //writer 허용
         }
         pthread_mutex_unlock(&reader_mutex);
     }

@@ -367,9 +367,9 @@ char *img5[L5] = {
  */
 bool alive = true;
 
-int read_count = 0;
-int write_count = 0;
-int writer_count = 0;
+int read_count = 0;     //읽고 있는 reader
+int write_count = 0;    //쓰고 있는 writer
+int writer_count = 0;   //쓰려고 하는 writer
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t rw_cond = PTHREAD_COND_INITIALIZER;
@@ -394,8 +394,8 @@ void *reader(void *arg)
      */
     while (alive) {
         pthread_mutex_lock(&mutex);
-        while (writer_count) {
-            pthread_cond_wait(&rw_cond, &mutex);
+        while (writer_count) {      //쓰려 하는 writer가 존재
+            pthread_cond_wait(&rw_cond, &mutex);    //대기
         }
         read_count++;
         pthread_mutex_unlock(&mutex);
@@ -440,8 +440,8 @@ void *writer(void *arg)
     while (alive) {
         pthread_mutex_lock(&mutex);
         writer_count++;
-        while (read_count || write_count) {
-            pthread_cond_wait(&rw_cond, &mutex);
+        while (read_count || write_count) {     //읽고 있는 reader나 쓰고 있는 writer가 존재
+            pthread_cond_wait(&rw_cond, &mutex);    //대기
         }
         write_count++;
         pthread_mutex_unlock(&mutex);

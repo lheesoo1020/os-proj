@@ -367,9 +367,9 @@ char *img5[L5] = {
  */
 bool alive = true;
 
-int reader_count = 0;
-int write_count = 0;
-pthread_cond_t rw_cond;
+int reader_count = 0;       //읽으려 하는 reader
+int write_count = 0;        //쓰고 있는 writer
+pthread_cond_t rw_cond;     //대기열
 pthread_mutex_t mutex;
 
 /*
@@ -392,8 +392,8 @@ void *reader(void *arg)
     while (alive) {
         pthread_mutex_lock(&mutex);
         reader_count++;
-        while (write_count)
-            pthread_cond_wait(&rw_cond, &mutex);
+        while (write_count)     //쓰고 있는 writer가 존재
+            pthread_cond_wait(&rw_cond, &mutex);    //대기
         pthread_mutex_unlock(&mutex);
         /*
          * Begin Critical Section
@@ -407,7 +407,7 @@ void *reader(void *arg)
          */
         pthread_mutex_lock(&mutex);
         reader_count--;
-        pthread_cond_signal(&rw_cond);
+        pthread_cond_broadcast(&rw_cond);
         pthread_mutex_unlock(&mutex);
     }
     pthread_exit(NULL);
@@ -435,8 +435,8 @@ void *writer(void *arg)
      */
     while (alive) {
         pthread_mutex_lock(&mutex);
-        while (reader_count || write_count)
-            pthread_cond_wait(&rw_cond, &mutex);
+        while (reader_count || write_count)     //읽으려 하는 reader나 쓰고 있는 writer가 존재
+            pthread_cond_wait(&rw_cond, &mutex);    //대기
         write_count++;
         pthread_mutex_unlock(&mutex);
         /*
@@ -471,7 +471,7 @@ void *writer(void *arg)
          * End Critical Section
          */
         pthread_mutex_lock(&mutex);
-        pthread_cond_signal(&rw_cond);
+        pthread_cond_broadcast(&rw_cond);
         write_count--;
         pthread_mutex_unlock(&mutex);
         /*
