@@ -21,22 +21,34 @@ static void *worker(void *param)
     while (1) {
         pthread_mutex_lock(&pool -> mutex);
 
+        //대기열에 빈자리가 없는 동안 대기
         while (pool -> state == ON && pool -> q_len == 0) {
             pthread_cond_wait(&pool -> full, &pool -> mutex);
         }
 
-        if (pool -> state == OFF || (pool -> state == STANDBY && pool -> q_len == 0)) {
+        //스레드풀이 꺼진 경우 종료
+        if (pool -> state == OFF) {
             pthread_mutex_unlock(&pool -> mutex);
             break;
         }
 
+        //스레드풀이 대기상태에서 남은 일을 모두 마쳤으면 종료
+        if (pool -> state == STANDBY && pool -> q_len == 0) {
+            pool -> state = OFF;
+            pthread_mutex_unlock(&pool -> mutex);
+            break;
+        }
+
+        //대기열에서 일을 받아오고 맨 앞과 대기열의 크기 조정
         task_t task = pool -> q[pool -> q_front];
         pool -> q_front = (pool -> q_front + 1) % pool -> q_size;
         pool -> q_len--;
 
+        //대기열의 빈자리를 기다리고 있는 submit 깨워주기
         pthread_cond_signal(&pool -> empty);
         pthread_mutex_unlock(&pool -> mutex);
 
+        //실행
         task.function(task.param);
     }
 
@@ -55,25 +67,31 @@ static void *worker(void *param)
  */
 int pthread_pool_init(pthread_pool_t *pool, size_t bee_size, size_t queue_size)
 {
+    //들어온 매개변수가 임계치를 넘었거나 queue_size가 너무 작은지 검사하여 조정
     if (bee_size > POOL_MAXBSIZE || queue_size > POOL_MAXQSIZE) return POOL_FAIL;
     if (queue_size < bee_size) queue_size = bee_size;
 
+    //각 변수 초기화
     pool -> bee_size = bee_size;
     pool -> q_size = queue_size;
     pool -> q_front = 0;
     pool -> q_len = 0;
 
+    //대기열과 일꾼들 메모리 할당
     pool -> q = malloc(queue_size * sizeof(task_t));
     if (pool -> q == NULL) return POOL_FAIL;
     pool -> bee = malloc(bee_size * sizeof(pthread_t));
     if (pool -> bee == NULL) return POOL_FAIL;
 
+    //스레드풀에서 사용할 뮤텍스와 조건변수 초기화
     pthread_mutex_init(&pool -> mutex, NULL);
     pthread_cond_init(&pool -> full, NULL);
     pthread_cond_init(&pool -> empty, NULL);
 
+    //스레드풀 켜짐으로 변경
     pool -> state = ON;
     
+    //일꾼 스레드 생성
     for (int i = 0; i < pool -> bee_size; i++) {
         pthread_create(pool -> bee + i, NULL, worker, pool);
     }
@@ -92,25 +110,34 @@ int pthread_pool_submit(pthread_pool_t *pool, void (*f)(void *p), void *p, int f
 {
     pthread_mutex_lock(&pool -> mutex);
     
+    //스레드풀의 대기열이 가득 찬 경우
     if (pool -> state == ON && pool -> q_len == pool -> q_size) {
+        //POOL_WAIT 옵션인 경우
         if (flag == POOL_WAIT) {
+            //대기열에 자리가 날 때까지 대기
             while (pool -> state == ON && pool -> q_len == pool -> q_size)
                 pthread_cond_wait(&pool -> empty, &pool -> mutex);
         }
+        //POOL_NOWAIT 옵션인 경우
         else if (flag == POOL_NOWAIT) {
+            //기다리지 않고 리턴
             pthread_mutex_unlock(&pool -> mutex);
             return POOL_FULL;
         }
     }
+    //스레드풀이 ON이 아닌 경우
     if (pool -> state != ON) {
+        //더이상 대기열에 일을 받지 않고 리턴
         pthread_mutex_unlock(&pool -> mutex);
         return POOL_FAIL;
     }
     
+    //대기열의 알맞은 위치에 일 추가
     pool -> q[(pool -> q_front + pool -> q_len) % pool -> q_size].function = f;
     pool -> q[(pool -> q_front + pool -> q_len) % pool -> q_size].param = p;
     pool -> q_len++;
     
+    //대기열에 일이 생기길 기다리는 일꾼 깨워주기
     pthread_cond_signal(&pool -> full);
     pthread_mutex_unlock(&pool -> mutex);
     
@@ -130,17 +157,22 @@ int pthread_pool_shutdown(pthread_pool_t *pool, int how)
 {
     pthread_mutex_lock(&pool -> mutex);
 
+    //POOL_COMPLETE 옵션인 경우 남은 일을 정리하고 끝낼 수 있도록 상태를 STANDBY로 설정
     if (how == POOL_COMPLETE) pool -> state = STANDBY;
+    //POOL_DISCARD 옵션인 경우 바로 끝낼 수 있도록 상태를 OFF로 설정
     else if (how == POOL_DISCARD) pool -> state = OFF;
 
+    //대기중인 일꾼, 함수 모두 깨우기
     pthread_cond_broadcast(&pool -> full);
     pthread_cond_broadcast(&pool -> empty);
     pthread_mutex_unlock(&pool -> mutex);
     
+    //모든 일꾼의 종료를 대기
     for (int i = 0; i < pool -> bee_size; i++) {
         pthread_join(pool -> bee[i], NULL);
     }
     
+    //할당했던 메모리 해제
     free(pool -> q);
     free(pool -> bee);
 
